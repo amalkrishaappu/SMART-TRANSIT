@@ -1,0 +1,530 @@
+{% extends 'base.html' %}
+
+{% block title %}Pickup & Drop Location Change Request - Student Portal{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4">
+    <!-- Breadcrumb & Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="fw-bold mb-1"><i class="fas fa-map-marker-alt text-primary me-2"></i>Pickup & Drop Location Change Request</h2>
+            <p class="text-muted mb-0">Request stop changes along your assigned route. All changes require administrator approval.</p>
+        </div>
+        <div>
+            <span class="badge bg-primary px-3 py-2 fs-6"><i class="fas fa-id-badge me-1"></i> ID: {{ student.student_id }}</span>
+        </div>
+    </div>
+
+    <!-- Alert Messages Area -->
+    <div id="alertBox"></div>
+
+    {% if not assignment %}
+        <div class="alert alert-warning card-custom p-4">
+            <h5><i class="fas fa-exclamation-triangle me-2"></i> No Active Bus Assignment</h5>
+            <p class="mb-0">You are currently not assigned to any college bus or route. Please contact the transportation administrator.</p>
+        </div>
+    {% else %}
+
+    <!-- Current Transportation Info Card -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card card-custom p-3 border-start border-4 border-primary">
+                <div class="row align-items-center">
+                    <div class="col-md-3">
+                        <small class="text-muted text-uppercase fw-bold">Assigned Bus</small>
+                        <h4 class="fw-bold text-navy mb-0"><i class="fas fa-bus me-1 text-primary"></i> {{ assignment.bus.bus_number }}</h4>
+                        <small class="text-muted">{{ assignment.bus.model_name }}</small>
+                    </div>
+                    <div class="col-md-3">
+                        <small class="text-muted text-uppercase fw-bold">Route</small>
+                        <div class="fw-bold">{{ assignment.route.route_name }}</div>
+                        <span class="badge bg-secondary">{{ assignment.route.route_code }}</span>
+                    </div>
+                    <div class="col-md-3">
+                        <small class="text-muted text-uppercase fw-bold">Current Pickup Location</small>
+                        <div class="fw-bold text-success"><i class="fas fa-arrow-circle-up me-1"></i> {{ assignment.active_pickup_stop.stop_name }}</div>
+                        <small class="text-muted">Scheduled: {{ assignment.active_pickup_stop.scheduled_pickup_time|time:"H:i" }} hrs (Stop #{{ assignment.active_pickup_stop.stop_sequence }})</small>
+                    </div>
+                    <div class="col-md-3">
+                        <small class="text-muted text-uppercase fw-bold">Current Drop Location</small>
+                        <div class="fw-bold text-danger"><i class="fas fa-arrow-circle-down me-1"></i> {{ assignment.active_drop_stop.stop_name }}</div>
+                        <small class="text-muted">Scheduled: {{ assignment.active_drop_stop.scheduled_drop_time|time:"H:i" }} hrs (Stop #{{ assignment.active_drop_stop.stop_sequence }})</small>
+                    </div>
+                </div>
+
+                {% if assignment.is_temporary_active %}
+                    <div class="mt-2 pt-2 border-top text-warning fw-semibold small">
+                        <i class="fas fa-clock me-1"></i> Note: You are currently on an approved <strong>temporary location change</strong> active until {{ assignment.temporary_end_date|date:"d M Y" }}.
+                        Baseline permanent stops: {{ assignment.permanent_pickup_stop.stop_name }} &rarr; {{ assignment.permanent_drop_stop.stop_name }}.
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content: Request Form & Map -->
+    <div class="row">
+        <!-- Request Submission Form -->
+        <div class="col-lg-6 mb-4">
+            <div class="card card-custom p-4 h-100">
+                <h4 class="fw-bold mb-3"><i class="fas fa-edit text-primary me-2"></i>Submit Location Change Request</h4>
+                
+                <form id="locationChangeForm">
+                    {% csrf_token %}
+
+                    <!-- Step 1: Select Type -->
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">What would you like to change?</label>
+                        <div class="btn-group w-100" role="group">
+                            <input type="radio" class="btn-check" name="request_type" id="type_pickup" value="PICKUP" checked onchange="toggleFormInputs()">
+                            <label class="btn btn-outline-primary" for="type_pickup"><i class="fas fa-sign-in-alt me-1"></i> Pickup Only</label>
+
+                            <input type="radio" class="btn-check" name="request_type" id="type_drop" value="DROP" onchange="toggleFormInputs()">
+                            <label class="btn btn-outline-primary" for="type_drop"><i class="fas fa-sign-out-alt me-1"></i> Drop Only</label>
+
+                            <input type="radio" class="btn-check" name="request_type" id="type_both" value="BOTH" onchange="toggleFormInputs()">
+                            <label class="btn btn-outline-primary" for="type_both"><i class="fas fa-exchange-alt me-1"></i> Both Stops</label>
+                        </div>
+                    </div>
+
+                    <!-- Pickup Stop Selector -->
+                    <div class="mb-3" id="pickup_select_group">
+                        <label for="requested_pickup_stop" class="form-label fw-semibold">
+                            <i class="fas fa-map-pin text-success me-1"></i> Select New Pickup Stop <span class="text-danger">*</span>
+                        </label>
+                        <select class="form-select" id="requested_pickup_stop" name="requested_pickup_stop" onchange="handleStopChange()">
+                            <option value="">-- Choose Pickup Stop along {{ assignment.route.route_code }} --</option>
+                            {% for stop in available_stops %}
+                                <option value="{{ stop.id }}" data-seq="{{ stop.stop_sequence }}" data-lat="{{ stop.latitude }}" data-lng="{{ stop.longitude }}" {% if stop.id == assignment.active_pickup_stop.id %}disabled class="text-muted"{% endif %}>
+                                    Stop #{{ stop.stop_sequence }}: {{ stop.stop_name }} (Pickup: {{ stop.scheduled_pickup_time|time:"H:i" }})
+                                    {% if stop.id == assignment.active_pickup_stop.id %}[Current Pickup]{% endif %}
+                                </option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text">Only verified stops along your assigned route <strong>{{ assignment.route.route_name }}</strong> are selectable.</div>
+                    </div>
+
+                    <!-- Drop Stop Selector -->
+                    <div class="mb-3" id="drop_select_group" style="display: none;">
+                        <label for="requested_drop_stop" class="form-label fw-semibold">
+                            <i class="fas fa-map-pin text-danger me-1"></i> Select New Drop Stop <span class="text-danger">*</span>
+                        </label>
+                        <select class="form-select" id="requested_drop_stop" name="requested_drop_stop" onchange="handleStopChange()">
+                            <option value="">-- Choose Drop Stop along {{ assignment.route.route_code }} --</option>
+                            {% for stop in available_stops %}
+                                <option value="{{ stop.id }}" data-seq="{{ stop.stop_sequence }}" data-lat="{{ stop.latitude }}" data-lng="{{ stop.longitude }}" {% if stop.id == assignment.active_drop_stop.id %}disabled class="text-muted"{% endif %}>
+                                    Stop #{{ stop.stop_sequence }}: {{ stop.stop_name }} (Drop: {{ stop.scheduled_drop_time|time:"H:i" }})
+                                    {% if stop.id == assignment.active_drop_stop.id %}[Current Drop]{% endif %}
+                                </option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text">Must be sequenced after your pickup stop on this route.</div>
+                    </div>
+
+                    <!-- Sequence Error Warning -->
+                    <div id="sequenceWarning" class="alert alert-danger py-2 small" style="display: none;">
+                        <i class="fas fa-ban me-1"></i> <strong>Invalid Stop Sequence:</strong> Pickup stop must come strictly before drop stop along the route.
+                    </div>
+
+                    <!-- Duration: Temporary or Permanent -->
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Change Duration</label>
+                        <div class="d-flex gap-4">
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="change_duration" id="duration_temp" value="TEMPORARY" checked onchange="toggleDurationInputs()">
+                                <label class="form-check-label" for="duration_temp">
+                                    <strong>Temporary</strong> (Returns to original stop after end date)
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="change_duration" id="duration_perm" value="PERMANENT" onchange="toggleDurationInputs()">
+                                <label class="form-check-label" for="duration_perm">
+                                    <strong>Permanent</strong> (Updates assignment permanently)
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Effective Dates -->
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-6">
+                            <label for="effective_start_date" class="form-label fw-semibold">Effective Start Date <span class="text-danger">*</span></label>
+                            <input type="date" class="form-control" id="effective_start_date" name="effective_start_date" required>
+                        </div>
+                        <div class="col-md-6" id="end_date_col">
+                            <label for="effective_end_date" class="form-label fw-semibold">Effective End Date <span class="text-danger">*</span></label>
+                            <input type="date" class="form-control" id="effective_end_date" name="effective_end_date">
+                            <div class="form-text small">Required for temporary changes.</div>
+                        </div>
+                    </div>
+
+                    <!-- Reason -->
+                    <div class="mb-3">
+                        <label for="reason" class="form-label fw-semibold">Reason for Location Change <span class="text-danger">*</span></label>
+                        <textarea class="form-control" id="reason" name="reason" rows="3" placeholder="Provide a valid explanation (e.g., temporary stay at guardian's home, project work, relocated residence)..." required></textarea>
+                    </div>
+
+                    <!-- Submit Button -->
+                    <div class="d-grid">
+                        <button type="submit" id="submitBtn" class="btn btn-primary py-2 fw-bold">
+                            <i class="fas fa-paper-plane me-1"></i> Submit Request for Administrator Approval
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Interactive Route & Stop Map -->
+        <div class="col-lg-6 mb-4">
+            <div class="card card-custom p-3 h-100">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h5 class="fw-bold mb-0"><i class="fas fa-map-marked-alt text-primary me-2"></i>Route Stops Visualizer</h5>
+                    <span class="badge bg-light text-dark border"><i class="fas fa-route me-1"></i> {{ assignment.route.route_name }}</span>
+                </div>
+                <p class="text-muted small mb-2">View all stops along your route. Click markers to preview locations.</p>
+                <div id="routeMap" class="map-container"></div>
+                <div class="mt-3 small d-flex flex-wrap gap-3">
+                    <div><span class="badge bg-success p-1"><i class="fas fa-circle"></i></span> Current Pickup</div>
+                    <div><span class="badge bg-danger p-1"><i class="fas fa-circle"></i></span> Current Drop</div>
+                    <div><span class="badge bg-warning text-dark p-1"><i class="fas fa-circle"></i></span> Proposed Target</div>
+                    <div><span class="badge bg-secondary p-1"><i class="fas fa-circle"></i></span> Other Route Stops</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Location Change Request History -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card card-custom p-4">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h4 class="fw-bold mb-0"><i class="fas fa-history text-primary me-2"></i>My Location Change Requests History</h4>
+                    <span class="badge bg-secondary">{{ my_requests.count }} Total Request(s)</span>
+                </div>
+
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Req ID</th>
+                                <th>Type</th>
+                                <th>Duration</th>
+                                <th>Current Stops</th>
+                                <th>Requested Stops</th>
+                                <th>Effective Period</th>
+                                <th>Status</th>
+                                <th>Admin Notes / Rejection Reason</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for req in my_requests %}
+                            <tr>
+                                <td><strong>#{{ req.id }}</strong></td>
+                                <td>
+                                    <span class="badge bg-light text-dark border">{{ req.get_request_type_display }}</span>
+                                </td>
+                                <td>
+                                    {% if req.change_duration == 'PERMANENT' %}
+                                        <span class="badge bg-info text-dark">Permanent</span>
+                                    {% else %}
+                                        <span class="badge bg-warning text-dark">Temporary</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <small class="d-block text-muted">P: {{ req.current_pickup_stop.stop_name }}</small>
+                                    <small class="d-block text-muted">D: {{ req.current_drop_stop.stop_name }}</small>
+                                </td>
+                                <td>
+                                    {% if req.requested_pickup_stop %}
+                                        <small class="d-block text-success fw-bold">P: {{ req.requested_pickup_stop.stop_name }}</small>
+                                    {% endif %}
+                                    {% if req.requested_drop_stop %}
+                                        <small class="d-block text-danger fw-bold">D: {{ req.requested_drop_stop.stop_name }}</small>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <small>{{ req.effective_start_date|date:"d M Y" }}
+                                    {% if req.effective_end_date %}
+                                        &rarr; {{ req.effective_end_date|date:"d M Y" }}
+                                    {% endif %}
+                                    </small>
+                                </td>
+                                <td>
+                                    {% if req.status == 'PENDING' %}
+                                        <span class="badge bg-warning text-dark"><i class="fas fa-hourglass-half me-1"></i> Pending Approval</span>
+                                    {% elif req.status == 'APPROVED' %}
+                                        <span class="badge bg-success"><i class="fas fa-check-circle me-1"></i> Approved</span>
+                                    {% elif req.status == 'REJECTED' %}
+                                        <span class="badge bg-danger"><i class="fas fa-times-circle me-1"></i> Rejected</span>
+                                    {% elif req.status == 'CANCELLED' %}
+                                        <span class="badge bg-secondary"><i class="fas fa-ban me-1"></i> Cancelled</span>
+                                    {% elif req.status == 'EXPIRED' %}
+                                        <span class="badge bg-dark"><i class="fas fa-history me-1"></i> Expired</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if req.rejection_reason %}
+                                        <div class="text-danger small"><strong>Rejection Reason:</strong> {{ req.rejection_reason }}</div>
+                                    {% elif req.administrator_remarks %}
+                                        <div class="text-muted small"><strong>Remarks:</strong> {{ req.administrator_remarks }}</div>
+                                    {% else %}
+                                        <span class="text-muted small">None</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if req.status == 'PENDING' %}
+                                        <button class="btn btn-outline-danger btn-sm" onclick="cancelRequest({{ req.id }})">
+                                            <i class="fas fa-times me-1"></i> Cancel
+                                        </button>
+                                    {% else %}
+                                        <span class="text-muted small">Locked</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="9" class="text-center py-4 text-muted">
+                                    <i class="fas fa-inbox fs-3 d-block mb-2"></i> No location change requests submitted yet.
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Available Stops data from Django template
+const routeStops = [
+    {% for stop in available_stops %}
+    {
+        id: {{ stop.id }},
+        name: "{{ stop.stop_name }}",
+        sequence: {{ stop.stop_sequence }},
+        lat: {{ stop.latitude }},
+        lng: {{ stop.longitude }},
+        pickupTime: "{{ stop.scheduled_pickup_time|time:'H:i' }}",
+        dropTime: "{{ stop.scheduled_drop_time|time:'H:i' }}"
+    }{% if not forloop.last %},{% endif %}
+    {% endfor %}
+];
+
+const currentPickupId = {% if assignment %}{{ assignment.active_pickup_stop.id }}{% else %}null{% endif %};
+const currentDropId = {% if assignment %}{{ assignment.active_drop_stop.id }}{% else %}null{% endif %};
+
+let map, markersLayer;
+
+// Initialize Map
+function initMap() {
+    if (!routeStops.length) return;
+
+    // Centered around first stop
+    map = L.map('routeMap').setView([routeStops[0].lat, routeStops[0].lng], 12);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '© OpenStreetMap contributors'
+    }).addTo(map);
+
+    markersLayer = L.layerGroup().addTo(map);
+    renderMarkers();
+
+    // Polyline connecting stops
+    const latlngs = routeStops.map(s => [s.lat, s.lng]);
+    const routeLine = L.polyline(latlngs, {color: '#1b2a4a', weight: 4, dashArray: '6, 6'}).addTo(map);
+    map.fitBounds(routeLine.getBounds(), {padding: [30, 30]});
+}
+
+function renderMarkers(highlightPickupId = null, highlightDropId = null) {
+    markersLayer.clearLayers();
+
+    routeStops.forEach(stop => {
+        let markerColor = '#6c757d'; // default secondary
+        let label = `Stop #${stop.sequence}: ${stop.name}`;
+
+        if (stop.id === currentPickupId) {
+            markerColor = '#2a9d8f'; // Green current pickup
+            label += ' [Current Pickup]';
+        } else if (stop.id === currentDropId) {
+            markerColor = '#e63946'; // Red current drop
+            label += ' [Current Drop]';
+        }
+
+        if (stop.id === highlightPickupId || stop.id === highlightDropId) {
+            markerColor = '#f39c12'; // Orange target highlight
+            label += ' [Requested Target]';
+        }
+
+        const circleMarker = L.circleMarker([stop.lat, stop.lng], {
+            radius: (stop.id === highlightPickupId || stop.id === highlightDropId) ? 11 : 8,
+            fillColor: markerColor,
+            color: '#ffffff',
+            weight: 2,
+            opacity: 1,
+            fillOpacity: 0.9
+        }).bindPopup(`<strong>${label}</strong><br>Pickup: ${stop.pickupTime} | Drop: ${stop.dropTime}`);
+
+        markersLayer.addLayer(circleMarker);
+    });
+}
+
+function toggleFormInputs() {
+    const type = document.querySelector('input[name="request_type"]:checked').value;
+    const pickupGroup = document.getElementById('pickup_select_group');
+    const dropGroup = document.getElementById('drop_select_group');
+
+    if (type === 'PICKUP') {
+        pickupGroup.style.display = 'block';
+        dropGroup.style.display = 'none';
+        document.getElementById('requested_drop_stop').value = '';
+    } else if (type === 'DROP') {
+        pickupGroup.style.display = 'none';
+        dropGroup.style.display = 'block';
+        document.getElementById('requested_pickup_stop').value = '';
+    } else if (type === 'BOTH') {
+        pickupGroup.style.display = 'block';
+        dropGroup.style.display = 'block';
+    }
+    handleStopChange();
+}
+
+function toggleDurationInputs() {
+    const isTemp = document.getElementById('duration_temp').checked;
+    const endCol = document.getElementById('end_date_col');
+    const endInput = document.getElementById('effective_end_date');
+    if (isTemp) {
+        endCol.style.display = 'block';
+        endInput.required = true;
+    } else {
+        endCol.style.display = 'none';
+        endInput.required = false;
+        endInput.value = '';
+    }
+}
+
+function handleStopChange() {
+    const pickupVal = parseInt(document.getElementById('requested_pickup_stop').value) || null;
+    const dropVal = parseInt(document.getElementById('requested_drop_stop').value) || null;
+
+    renderMarkers(pickupVal, dropVal);
+
+    // Sequence Validation
+    const effectivePickupSeq = getStopSequence(pickupVal) || getStopSequence(currentPickupId);
+    const effectiveDropSeq = getStopSequence(dropVal) || getStopSequence(currentDropId);
+
+    const warnBox = document.getElementById('sequenceWarning');
+    const submitBtn = document.getElementById('submitBtn');
+
+    if (effectivePickupSeq && effectiveDropSeq && effectivePickupSeq >= effectiveDropSeq) {
+        warnBox.style.display = 'block';
+        submitBtn.disabled = true;
+    } else {
+        warnBox.style.display = 'none';
+        submitBtn.disabled = false;
+    }
+}
+
+function getStopSequence(stopId) {
+    const stop = routeStops.find(s => s.id === stopId);
+    return stop ? stop.sequence : null;
+}
+
+// Set default start date to tomorrow
+document.addEventListener('DOMContentLoaded', function() {
+    initMap();
+    const today = new Date();
+    today.setDate(today.getDate() + 1);
+    const dateStr = today.toISOString().split('T')[0];
+    document.getElementById('effective_start_date').value = dateStr;
+    document.getElementById('effective_start_date').min = new Date().toISOString().split('T')[0];
+
+    const endDate = new Date(today);
+    endDate.setDate(endDate.getDate() + 7);
+    document.getElementById('effective_end_date').value = endDate.toISOString().split('T')[0];
+    document.getElementById('effective_end_date').min = dateStr;
+});
+
+// Form Submission via AJAX to REST API
+document.getElementById('locationChangeForm')?.addEventListener('submit', function(e) {
+    e.preventDefault();
+    const submitBtn = document.getElementById('submitBtn');
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Submitting...';
+
+    const payload = {
+        request_type: document.querySelector('input[name="request_type"]:checked').value,
+        change_duration: document.querySelector('input[name="change_duration"]:checked').value,
+        reason: document.getElementById('reason').value,
+        effective_start_date: document.getElementById('effective_start_date').value,
+        effective_end_date: document.getElementById('effective_end_date').value || null,
+        requested_pickup_stop: parseInt(document.getElementById('requested_pickup_stop').value) || null,
+        requested_drop_stop: parseInt(document.getElementById('requested_drop_stop').value) || null
+    };
+
+    fetch('/api/v1/routes/location-requests/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        },
+        body: JSON.stringify(payload)
+    })
+    .then(async res => {
+        const data = await res.json();
+        if (!res.ok) {
+            let errorMsg = 'Failed to submit request.';
+            if (data.detail) errorMsg = data.detail;
+            else if (typeof data === 'object') {
+                errorMsg = Object.values(data).flat().join('<br>');
+            }
+            throw new Error(errorMsg);
+        }
+        return data;
+    })
+    .then(data => {
+        showAlert('success', 'Location change request submitted successfully! Awaiting administrator approval.');
+        setTimeout(() => window.location.reload(), 1500);
+    })
+    .catch(err => {
+        showAlert('danger', err.message);
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<i class="fas fa-paper-plane me-1"></i> Submit Request for Administrator Approval';
+    });
+});
+
+function cancelRequest(id) {
+    if (!confirm('Are you sure you want to cancel this pending request?')) return;
+
+    fetch(`/api/v1/routes/location-requests/${id}/cancel/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        }
+    })
+    .then(res => res.json())
+    .then(data => {
+        showAlert('info', data.message || 'Request cancelled.');
+        setTimeout(() => window.location.reload(), 1000);
+    })
+    .catch(err => showAlert('danger', 'Error cancelling request.'));
+}
+
+function showAlert(type, msg) {
+    const box = document.getElementById('alertBox');
+    box.innerHTML = `<div class="alert alert-${type} alert-dismissible fade show" role="alert">
+        ${msg}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>`;
+    box.scrollIntoView({behavior: 'smooth'});
+}
+</script>
+{% endblock %}

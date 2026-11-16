@@ -1,0 +1,413 @@
+{% extends 'base.html' %}
+
+{% block title %}Location Change Requests - Administrator Dashboard{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="fw-bold mb-1"><i class="fas fa-tasks text-primary me-2"></i>Location Change Requests Management</h2>
+            <p class="text-muted mb-0">Review, validate, approve, or reject student pickup and drop stop change requests.</p>
+        </div>
+        <div>
+            <button class="btn btn-outline-primary btn-sm" onclick="window.location.reload()">
+                <i class="fas fa-sync-alt me-1"></i> Refresh Desk
+            </button>
+        </div>
+    </div>
+
+    <!-- Alert Box -->
+    <div id="adminAlertBox"></div>
+
+    <!-- Summary KPI Cards -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-3">
+            <div class="card card-custom p-3 border-start border-4 border-warning">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="text-muted small text-uppercase fw-bold">Pending Review</div>
+                        <h2 class="fw-bold text-warning mb-0">{{ counts.pending }}</h2>
+                    </div>
+                    <div class="fs-1 text-warning opacity-50"><i class="fas fa-hourglass-half"></i></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card card-custom p-3 border-start border-4 border-success">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="text-muted small text-uppercase fw-bold">Approved Changes</div>
+                        <h2 class="fw-bold text-success mb-0">{{ counts.approved }}</h2>
+                    </div>
+                    <div class="fs-1 text-success opacity-50"><i class="fas fa-check-circle"></i></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card card-custom p-3 border-start border-4 border-danger">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="text-muted small text-uppercase fw-bold">Rejected</div>
+                        <h2 class="fw-bold text-danger mb-0">{{ counts.rejected }}</h2>
+                    </div>
+                    <div class="fs-1 text-danger opacity-50"><i class="fas fa-times-circle"></i></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card card-custom p-3 border-start border-4 border-primary">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="text-muted small text-uppercase fw-bold">Total History</div>
+                        <h2 class="fw-bold text-primary mb-0">{{ counts.total }}</h2>
+                    </div>
+                    <div class="fs-1 text-primary opacity-50"><i class="fas fa-folder"></i></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Requests Table with Filter Tabs -->
+    <div class="card card-custom p-4">
+        <!-- Filter Tabs -->
+        <ul class="nav nav-pills mb-3 border-bottom pb-3">
+            <li class="nav-item">
+                <a class="nav-link {% if current_filter == 'ALL' %}active{% endif %}" href="?status=ALL">
+                    All Requests ({{ counts.total }})
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {% if current_filter == 'PENDING' %}active bg-warning text-dark{% endif %}" href="?status=PENDING">
+                    <i class="fas fa-clock me-1"></i> Pending ({{ counts.pending }})
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {% if current_filter == 'APPROVED' %}active bg-success{% endif %}" href="?status=APPROVED">
+                    <i class="fas fa-check me-1"></i> Approved ({{ counts.approved }})
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {% if current_filter == 'REJECTED' %}active bg-danger{% endif %}" href="?status=REJECTED">
+                    <i class="fas fa-times me-1"></i> Rejected ({{ counts.rejected }})
+                </a>
+            </li>
+        </ul>
+
+        <!-- Table -->
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>Req ID</th>
+                        <th>Student & ID</th>
+                        <th>Bus & Route</th>
+                        <th>Current Stops</th>
+                        <th>Requested Stops</th>
+                        <th>Type & Duration</th>
+                        <th>Reason</th>
+                        <th>Submitted</th>
+                        <th>Status</th>
+                        <th class="text-end">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for req in requests %}
+                    <tr id="req-row-{{ req.id }}">
+                        <td><strong>#{{ req.id }}</strong></td>
+                        <td>
+                            <div class="fw-bold">{{ req.student.user.get_full_name }}</div>
+                            <small class="text-muted"><i class="fas fa-id-card me-1"></i>{{ req.student.student_id }}</small>
+                        </td>
+                        <td>
+                            <span class="badge bg-primary">{{ req.assigned_bus.bus_number }}</span>
+                            <div class="small text-muted">{{ req.assigned_route.route_name }}</div>
+                        </td>
+                        <td>
+                            <small class="d-block text-muted"><strong>Pickup:</strong> {{ req.current_pickup_stop.stop_name }}</small>
+                            <small class="d-block text-muted"><strong>Drop:</strong> {{ req.current_drop_stop.stop_name }}</small>
+                        </td>
+                        <td>
+                            {% if req.requested_pickup_stop %}
+                                <small class="d-block text-success fw-bold"><i class="fas fa-arrow-up me-1"></i>Pickup: {{ req.requested_pickup_stop.stop_name }}</small>
+                            {% else %}
+                                <small class="d-block text-muted"><i class="fas fa-minus me-1"></i>Pickup: (Unchanged)</small>
+                            {% endif %}
+                            {% if req.requested_drop_stop %}
+                                <small class="d-block text-danger fw-bold"><i class="fas fa-arrow-down me-1"></i>Drop: {{ req.requested_drop_stop.stop_name }}</small>
+                            {% else %}
+                                <small class="d-block text-muted"><i class="fas fa-minus me-1"></i>Drop: (Unchanged)</small>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="small fw-semibold">{{ req.get_request_type_display }}</div>
+                            {% if req.change_duration == 'PERMANENT' %}
+                                <span class="badge bg-info text-dark">Permanent (from {{ req.effective_start_date|date:"d M Y" }})</span>
+                            {% else %}
+                                <span class="badge bg-warning text-dark">Temp ({{ req.effective_start_date|date:"d M" }} &rarr; {{ req.effective_end_date|date:"d M Y" }})</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="small text-truncate" style="max-width: 180px;" title="{{ req.reason }}">
+                                {{ req.reason }}
+                            </div>
+                        </td>
+                        <td>
+                            <small class="text-muted">{{ req.created_at|date:"d M Y, H:i" }}</small>
+                        </td>
+                        <td>
+                            {% if req.status == 'PENDING' %}
+                                <span class="badge bg-warning text-dark"><i class="fas fa-hourglass-half me-1"></i> Pending</span>
+                            {% elif req.status == 'APPROVED' %}
+                                <span class="badge bg-success"><i class="fas fa-check-circle me-1"></i> Approved</span>
+                            {% elif req.status == 'REJECTED' %}
+                                <span class="badge bg-danger"><i class="fas fa-times-circle me-1"></i> Rejected</span>
+                            {% elif req.status == 'CANCELLED' %}
+                                <span class="badge bg-secondary">Cancelled</span>
+                            {% elif req.status == 'EXPIRED' %}
+                                <span class="badge bg-dark">Expired</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end">
+                            {% if req.status == 'PENDING' %}
+                                <button class="btn btn-success btn-sm me-1" onclick="openApproveModal({{ req.id }}, '{{ req.student.user.get_full_name }}', '{{ req.assigned_bus.bus_number }}')">
+                                    <i class="fas fa-check me-1"></i> Approve
+                                </button>
+                                <button class="btn btn-danger btn-sm" onclick="openRejectModal({{ req.id }}, '{{ req.student.user.get_full_name }}')">
+                                    <i class="fas fa-times me-1"></i> Reject
+                                </button>
+                            {% else %}
+                                <button class="btn btn-outline-secondary btn-sm" onclick="viewAuditInfo({{ req.id }}, '{{ req.status }}', '{{ req.reviewed_by.get_full_name|default:'Admin' }}', '{{ req.reviewed_at|date:'d M Y H:i' }}', '{{ req.rejection_reason|default:''|escapejs }}', '{{ req.administrator_remarks|default:''|escapejs }}')">
+                                    <i class="fas fa-info-circle me-1"></i> Audit
+                                </button>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="10" class="text-center py-5 text-muted">
+                            <i class="fas fa-inbox fs-2 d-block mb-2"></i> No requests found matching the selected filter.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Approve Request -->
+<div class="modal fade" id="approveModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title"><i class="fas fa-check-circle me-2"></i>Approve Location Change Request</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to approve this request for <strong id="approveStudentName"></strong> on <strong id="approveBusNo"></strong>?</p>
+                <div class="alert alert-light border small">
+                    <i class="fas fa-info-circle text-primary me-1"></i> Approving this request will:
+                    <ul class="mb-0 ps-3">
+                        <li>Update the active student assignment for the approved period.</li>
+                        <li>Update the passenger manifest for the assigned driver.</li>
+                        <li>Dispatch automated notifications to the student and linked parent(s).</li>
+                    </ul>
+                </div>
+                <div class="mb-3">
+                    <label for="admin_remarks" class="form-label fw-semibold">Administrator Remarks (Optional)</label>
+                    <textarea class="form-control" id="admin_remarks" rows="2" placeholder="e.g. Approved as per college transport policy."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" id="confirmApproveBtn" class="btn btn-success" onclick="confirmApprove()">
+                    <i class="fas fa-check me-1"></i> Confirm & Approve
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Reject Request -->
+<div class="modal fade" id="rejectModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title"><i class="fas fa-times-circle me-2"></i>Reject Location Change Request</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Reject request for <strong id="rejectStudentName"></strong>?</p>
+                <p class="text-muted small">Existing pickup and drop assignments will remain unchanged.</p>
+                <div class="mb-3">
+                    <label for="rejection_reason" class="form-label fw-semibold">
+                        Rejection Reason <span class="text-danger">*</span>
+                    </label>
+                    <textarea class="form-control" id="rejection_reason" rows="3" placeholder="Explain clearly why this request cannot be approved (e.g. Bus stop is not authorized for passenger dwell time, route overcrowding)..." required></textarea>
+                    <div id="rejectError" class="text-danger small mt-1" style="display: none;">Rejection reason is required.</div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" id="confirmRejectBtn" class="btn btn-danger" onclick="confirmReject()">
+                    <i class="fas fa-times me-1"></i> Confirm & Reject
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Audit Details -->
+<div class="modal fade" id="auditModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-navy text-white">
+                <h5 class="modal-title"><i class="fas fa-clipboard-check me-2"></i>Request Audit Details</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="auditModalBody">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let currentActionId = null;
+const csrfToken = '{{ csrf_token }}';
+
+function openApproveModal(id, studentName, busNo) {
+    currentActionId = id;
+    document.getElementById('approveStudentName').innerText = studentName;
+    document.getElementById('approveBusNo').innerText = busNo;
+    document.getElementById('admin_remarks').value = '';
+    new bootstrap.Modal(document.getElementById('approveModal')).show();
+}
+
+function confirmApprove() {
+    const btn = document.getElementById('confirmApproveBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Processing...';
+
+    const payload = {
+        admin_remarks: document.getElementById('admin_remarks').value
+    };
+
+    fetch(`/api/v1/routes/location-requests/${currentActionId}/approve/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken
+        },
+        body: JSON.stringify(payload)
+    })
+    .then(async res => {
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Approval failed.');
+        return data;
+    })
+    .then(data => {
+        bootstrap.Modal.getInstance(document.getElementById('approveModal')).hide();
+        showAdminAlert('success', data.message || 'Request approved successfully.');
+        setTimeout(() => window.location.reload(), 1200);
+    })
+    .catch(err => {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-check me-1"></i> Confirm & Approve';
+        alert('Error: ' + err.message);
+    });
+}
+
+function openRejectModal(id, studentName) {
+    currentActionId = id;
+    document.getElementById('rejectStudentName').innerText = studentName;
+    document.getElementById('rejection_reason').value = '';
+    document.getElementById('rejectError').style.display = 'none';
+    new bootstrap.Modal(document.getElementById('rejectModal')).show();
+}
+
+function confirmReject() {
+    const reason = document.getElementById('rejection_reason').value.trim();
+    if (!reason) {
+        document.getElementById('rejectError').style.display = 'block';
+        return;
+    }
+
+    const btn = document.getElementById('confirmRejectBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Processing...';
+
+    const payload = {
+        rejection_reason: reason
+    };
+
+    fetch(`/api/v1/routes/location-requests/${currentActionId}/reject/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken
+        },
+        body: JSON.stringify(payload)
+    })
+    .then(async res => {
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.rejection_reason || data.detail || 'Rejection failed.');
+        return data;
+    })
+    .then(data => {
+        bootstrap.Modal.getInstance(document.getElementById('rejectModal')).hide();
+        showAdminAlert('danger', data.message || 'Request rejected.');
+        setTimeout(() => window.location.reload(), 1200);
+    })
+    .catch(err => {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-times me-1"></i> Confirm & Reject';
+        alert('Error: ' + err.message);
+    });
+}
+
+function viewAuditInfo(id, status, reviewer, reviewedAt, rejectionReason, remarks) {
+    let content = `
+        <div class="mb-3">
+            <label class="fw-bold text-muted small">REQUEST ID</label>
+            <div>#${id} (${status})</div>
+        </div>
+        <div class="mb-3">
+            <label class="fw-bold text-muted small">REVIEWED BY</label>
+            <div>${reviewer} on ${reviewedAt}</div>
+        </div>
+    `;
+    if (rejectionReason) {
+        content += `
+            <div class="mb-3">
+                <label class="fw-bold text-danger small">REJECTION REASON</label>
+                <div class="p-2 bg-light border text-danger rounded">${rejectionReason}</div>
+            </div>
+        `;
+    }
+    if (remarks) {
+        content += `
+            <div class="mb-3">
+                <label class="fw-bold text-muted small">ADMINISTRATOR REMARKS</label>
+                <div class="p-2 bg-light border rounded">${remarks}</div>
+            </div>
+        `;
+    }
+    document.getElementById('auditModalBody').innerHTML = content;
+    new bootstrap.Modal(document.getElementById('auditModal')).show();
+}
+
+function showAdminAlert(type, msg) {
+    const box = document.getElementById('adminAlertBox');
+    box.innerHTML = `<div class="alert alert-${type} alert-dismissible fade show" role="alert">
+        <i class="fas fa-info-circle me-1"></i> ${msg}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>`;
+}
+</script>
+{% endblock %}

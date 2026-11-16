@@ -1,0 +1,138 @@
+{% extends 'base.html' %}
+
+{% block title %}Driver Console - Passenger Manifest{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="fw-bold mb-1"><i class="fas fa-clipboard-list text-success me-2"></i>Driver Trip Console & Manifest</h2>
+            <p class="text-muted mb-0">Driver: <strong>{{ driver.user.get_full_name }}</strong> | License: <strong>{{ driver.license_number }}</strong></p>
+        </div>
+        <div>
+            <span class="badge bg-success px-3 py-2 fs-6"><i class="fas fa-id-card me-1"></i> Active Driver Duty</span>
+        </div>
+    </div>
+
+    {% if not bus %}
+        <div class="alert alert-warning card-custom p-4">
+            <h5><i class="fas fa-exclamation-circle me-2"></i> No Bus Assigned</h5>
+            <p class="mb-0">You are currently not assigned to any bus. Please contact the fleet administrator.</p>
+        </div>
+    {% else %}
+
+    <!-- Trip & Bus Card -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card card-custom p-3 border-start border-4 border-success">
+                <div class="row align-items-center">
+                    <div class="col-md-3">
+                        <small class="text-muted text-uppercase fw-bold">Assigned Bus</small>
+                        <h4 class="fw-bold text-navy mb-0"><i class="fas fa-bus text-success me-1"></i> {{ bus.bus_number }}</h4>
+                        <small class="text-muted">{{ bus.registration_number }} (Cap: {{ bus.seating_capacity }} seats)</small>
+                    </div>
+                    <div class="col-md-3">
+                        <small class="text-muted text-uppercase fw-bold">Assigned Route</small>
+                        <div class="fw-bold">{{ route.route_name }}</div>
+                        <span class="badge bg-secondary">{{ route.route_code }}</span>
+                    </div>
+                    <div class="col-md-3">
+                        <small class="text-muted text-uppercase fw-bold">Total Expected Passengers</small>
+                        <h4 class="fw-bold text-primary mb-0"><i class="fas fa-users me-1"></i> {{ passengers.count }} Students</h4>
+                        <small class="text-muted">Capacity Occupancy: {{ bus.current_occupancy_count }}/{{ bus.seating_capacity }}</small>
+                    </div>
+                    <div class="col-md-3 text-end">
+                        <button class="btn btn-primary px-3 py-2" onclick="window.location.reload()">
+                            <i class="fas fa-sync-alt me-1"></i> Refresh Manifest
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Passenger Manifest Table -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card card-custom p-4">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h4 class="fw-bold mb-0"><i class="fas fa-user-check text-success me-2"></i>Approved Student Passenger Manifest</h4>
+                    <span class="badge bg-light text-dark border">Updated in real-time upon admin approval</span>
+                </div>
+
+                <div class="alert alert-info py-2 small">
+                    <i class="fas fa-info-circle me-1"></i> <strong>Notice for Drivers:</strong> All passenger pickup and drop locations displayed here are authorized by the college administration. Any approved temporary or permanent location changes are automatically reflected below. Drivers cannot modify assignments.
+                </div>
+
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>#</th>
+                                <th>Student Name</th>
+                                <th>Student ID</th>
+                                <th>Department</th>
+                                <th>Active Pickup Stop</th>
+                                <th>Active Drop Stop</th>
+                                <th>Location Status / Assignment Tag</th>
+                                <th>Emergency Contact</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for p in passengers %}
+                            <tr>
+                                <td>{{ forloop.counter }}</td>
+                                <td>
+                                    <strong>{{ p.student.user.get_full_name }}</strong>
+                                </td>
+                                <td>
+                                    <span class="badge bg-light text-dark border">{{ p.student.student_id }}</span>
+                                </td>
+                                <td>{{ p.student.department }} ({{ p.student.academic_year }})</td>
+                                <td>
+                                    <div class="fw-bold text-success">
+                                        <i class="fas fa-map-pin me-1"></i> {{ p.active_pickup_stop.stop_name }}
+                                    </div>
+                                    <small class="text-muted">Time: {{ p.active_pickup_stop.scheduled_pickup_time|time:"H:i" }} hrs (Stop #{{ p.active_pickup_stop.stop_sequence }})</small>
+                                </td>
+                                <td>
+                                    <div class="fw-bold text-danger">
+                                        <i class="fas fa-map-pin me-1"></i> {{ p.active_drop_stop.stop_name }}
+                                    </div>
+                                    <small class="text-muted">Time: {{ p.active_drop_stop.scheduled_drop_time|time:"H:i" }} hrs (Stop #{{ p.active_drop_stop.stop_sequence }})</small>
+                                </td>
+                                <td>
+                                    {% if p.is_temporary_active %}
+                                        <span class="badge bg-warning text-dark p-2">
+                                            <i class="fas fa-clock me-1"></i> Approved Temp Change (until {{ p.temporary_end_date|date:"d M Y" }})
+                                        </span>
+                                        <small class="d-block text-muted mt-1">Perm Baseline: {{ p.permanent_pickup_stop.stop_name }}</small>
+                                    {% else %}
+                                        <span class="badge bg-success p-2">
+                                            <i class="fas fa-check-circle me-1"></i> Regular Approved Assignment
+                                        </span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <a href="tel:{{ p.student.emergency_contact }}" class="btn btn-outline-secondary btn-sm">
+                                        <i class="fas fa-phone-alt me-1"></i> {{ p.student.emergency_contact|default:"N/A" }}
+                                    </a>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="8" class="text-center py-4 text-muted">
+                                    <i class="fas fa-users-slash fs-2 d-block mb-2"></i> No passengers assigned to this bus yet.
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% endif %}
+</div>
+{% endblock %}
