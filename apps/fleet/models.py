@@ -22,6 +22,10 @@ class Bus(models.Model):
     def available_seats(self):
         return max(0, self.seating_capacity - self.current_occupancy_count())
 
+    def get_active_driver(self):
+        da = self.driver_assignments.filter(is_active=True).select_related('driver__user').first()
+        return da.driver if da else None
+
     def __str__(self):
         return f"{self.bus_number} ({self.registration_number}) - Cap: {self.seating_capacity}"
 

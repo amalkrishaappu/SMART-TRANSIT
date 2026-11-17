@@ -10,6 +10,7 @@ class User(AbstractUser):
     ]
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='STUDENT', db_index=True)
     phone_number = models.CharField(max_length=20, blank=True, null=True)
+    must_change_password = models.BooleanField(default=False)
 
     def is_admin_role(self):
         return self.role == 'ADMIN' or self.is_superuser
@@ -34,6 +35,18 @@ class StudentProfile(models.Model):
     academic_year = models.CharField(max_length=20, default='3rd Year')
     emergency_contact = models.CharField(max_length=20, blank=True, null=True)
     home_address = models.TextField(blank=True, null=True)
+    guardian_name = models.CharField(max_length=150, blank=True, default='')
+    guardian_phone = models.CharField(max_length=20, blank=True, default='')
+    # Paper-form preferences. These are not a confirmed bus assignment.
+    preferred_route = models.ForeignKey(
+        'routes.Route', on_delete=models.SET_NULL, null=True, blank=True, related_name='preferred_by_students'
+    )
+    preferred_pickup_stop = models.ForeignKey(
+        'routes.BusStop', on_delete=models.SET_NULL, null=True, blank=True, related_name='preferred_pickup_students'
+    )
+    preferred_drop_stop = models.ForeignKey(
+        'routes.BusStop', on_delete=models.SET_NULL, null=True, blank=True, related_name='preferred_drop_students'
+    )
 
     def __str__(self):
         return f"{self.student_id} - {self.user.get_full_name()}"

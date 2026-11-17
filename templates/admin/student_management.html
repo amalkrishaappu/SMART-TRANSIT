@@ -1,0 +1,254 @@
+{% extends 'base.html' %}
+
+{% block title %}Student Management - Administrator Console{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="fw-bold mb-1"><i class="fas fa-user-graduate text-primary me-2"></i>Student Management</h2>
+            <p class="text-muted mb-0">Enter students from the offline transport form. Preferred stops are not a confirmed bus assignment.</p>
+        </div>
+        <a href="{% url 'admin-bus-allotment' %}" class="btn btn-outline-primary btn-sm">
+            <i class="fas fa-bus me-1"></i> Confirm Bus Assignment
+        </a>
+    </div>
+
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags|default:'info' }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    {% if issued_credentials %}
+        <div class="alert alert-warning border-warning" id="issued-credentials">
+            <h5 class="fw-bold"><i class="fas fa-key me-1"></i> Temporary passwords — shown once</h5>
+            <p class="mb-2 small">Give these to the user now. They are not stored in the database and will disappear when you leave this page. The user must change the password at first sign-in.</p>
+            {% for item in issued_credentials %}
+                <div class="issued-credential border rounded bg-white p-2 mb-2">
+                    <div class="fw-semibold text-capitalize">{{ item.kind }} — {{ item.name }} ({{ item.action }})</div>
+                    <div>username: <code>{{ item.username }}</code></div>
+                    {% if item.password %}
+                        <div>temporary password: <code>{{ item.password }}</code></div>
+                    {% else %}
+                        <div>Linked to an existing parent account. No new password was created.</div>
+                    {% endif %}
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    <div class="row g-4">
+        <div class="col-lg-4">
+            <div class="card card-custom p-4">
+                <h4 class="fw-bold mb-3">
+                    {% if edit_profile and not form_errors %}Update student{% elif edit_profile %}Update student{% else %}Add student{% endif %}
+                </h4>
+                {% if form_errors %}
+                    <div class="alert alert-danger small">
+                        <ul class="mb-0 ps-3">
+                            {% for error in form_errors %}
+                                <li>{{ error }}</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                {% endif %}
+                <form method="POST">
+                    {% csrf_token %}
+                    {% if edit_profile %}
+                        <input type="hidden" name="action" value="update_student">
+                        <input type="hidden" name="profile_id" value="{{ edit_profile.id }}">
+                    {% else %}
+                        <input type="hidden" name="action" value="create_student">
+                    {% endif %}
+
+                    <div class="row g-2 mb-2">
+                        <div class="col-6">
+                            <label class="form-label fw-semibold">First name <span class="text-danger">*</span></label>
+                            <input class="form-control" name="first_name" required value="{% if form_data %}{{ form_data.first_name }}{% elif edit_profile %}{{ edit_profile.user.first_name }}{% endif %}">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label fw-semibold">Last name</label>
+                            <input class="form-control" name="last_name" value="{% if form_data %}{{ form_data.last_name }}{% elif edit_profile %}{{ edit_profile.user.last_name }}{% endif %}">
+                        </div>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label fw-semibold">Admission number <span class="text-danger">*</span></label>
+                        <input class="form-control" name="student_id" required value="{% if form_data %}{{ form_data.student_id }}{% elif edit_profile %}{{ edit_profile.student_id }}{% endif %}">
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label fw-semibold">Department or course <span class="text-danger">*</span></label>
+                        <input class="form-control" name="department" required value="{% if form_data %}{{ form_data.department }}{% elif edit_profile %}{{ edit_profile.department }}{% endif %}">
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label fw-semibold">Academic year or semester <span class="text-danger">*</span></label>
+                        <input class="form-control" name="academic_year" required value="{% if form_data %}{{ form_data.academic_year }}{% elif edit_profile %}{{ edit_profile.academic_year }}{% endif %}">
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label fw-semibold">Student phone <span class="text-danger">*</span></label>
+                        <input class="form-control" name="phone_number" required maxlength="20" value="{% if form_data %}{{ form_data.phone_number }}{% elif edit_profile %}{{ edit_profile.user.phone_number }}{% endif %}">
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label fw-semibold">Parent or guardian name <span class="text-danger">*</span></label>
+                        <input class="form-control" name="guardian_name" required value="{% if form_data %}{{ form_data.guardian_name }}{% elif edit_profile %}{{ edit_profile.guardian_name }}{% endif %}">
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label fw-semibold">Parent or guardian phone <span class="text-danger">*</span></label>
+                        <input class="form-control" name="guardian_phone" required maxlength="20" value="{% if form_data %}{{ form_data.guardian_phone }}{% elif edit_profile %}{{ edit_profile.guardian_phone }}{% endif %}">
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label fw-semibold">Address <span class="text-danger">*</span></label>
+                        <textarea class="form-control" name="home_address" rows="2" required>{% if form_data %}{{ form_data.home_address }}{% elif edit_profile %}{{ edit_profile.home_address }}{% endif %}</textarea>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label fw-semibold" for="preferredRoute">Preferred route <span class="text-danger">*</span></label>
+                        <select class="form-select" id="preferredRoute" name="preferred_route_id" required onchange="populatePreferredStops()">
+                            <option value="">-- Select route --</option>
+                            {% for route in routes %}
+                                <option value="{{ route.id }}" {% if form_data and form_data.preferred_route_id == route.id|stringformat:"s" %}selected{% elif edit_profile and edit_profile.preferred_route_id == route.id and not form_data %}selected{% endif %}>
+                                    {{ route.route_code }}: {{ route.route_name }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label fw-semibold" for="preferredPickup">Preferred pickup <span class="text-danger">*</span></label>
+                        <select class="form-select" id="preferredPickup" name="preferred_pickup_stop_id" required></select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold" for="preferredDrop">Preferred drop <span class="text-danger">*</span></label>
+                        <select class="form-select" id="preferredDrop" name="preferred_drop_stop_id" required></select>
+                    </div>
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" name="issue_student_login" id="issueStudentLogin" {% if not edit_profile %}checked{% elif form_data.issue_student_login %}checked{% endif %}>
+                        <label class="form-check-label" for="issueStudentLogin">Generate student login now</label>
+                    </div>
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" name="issue_parent_login" id="issueParentLogin" {% if not edit_profile %}checked{% elif form_data.issue_parent_login %}checked{% endif %}>
+                        <label class="form-check-label" for="issueParentLogin">Generate or link parent login</label>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100 fw-bold">Save student</button>
+                    {% if edit_profile %}
+                        <a href="{% url 'admin-student-management' %}" class="btn btn-link w-100">Cancel edit</a>
+                    {% endif %}
+                </form>
+            </div>
+        </div>
+
+        <div class="col-lg-8">
+            <div class="card card-custom p-4">
+                <h4 class="fw-bold mb-3">Students entered by the office</h4>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Student</th>
+                                <th>Preferred route and stops</th>
+                                <th>Login</th>
+                                <th class="text-end">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for student in students %}
+                            <tr>
+                                <td>
+                                    <div class="fw-bold">{{ student.user.get_full_name }}</div>
+                                    <div class="small text-muted">{{ student.student_id }} · {{ student.department }}</div>
+                                    <div class="small text-muted">{{ student.academic_year }} · {{ student.user.phone_number }}</div>
+                                    <div class="small">Guardian: {{ student.guardian_name|default:"—" }} ({{ student.guardian_phone|default:"—" }})</div>
+                                </td>
+                                <td>
+                                    {% if student.preferred_route %}
+                                        <div class="fw-semibold">{{ student.preferred_route.route_code }}</div>
+                                        <small class="d-block text-success">Pickup: {{ student.preferred_pickup_stop.stop_name }}</small>
+                                        <small class="d-block text-danger">Drop: {{ student.preferred_drop_stop.stop_name }}</small>
+                                    {% else %}
+                                        <span class="text-muted small">Not recorded</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="small">Student: <code>{{ student.user.username }}</code></div>
+                                    {% if student.user.has_usable_password %}
+                                        <span class="badge bg-success">Login issued</span>
+                                        {% if student.user.must_change_password %}
+                                            <span class="badge bg-warning text-dark">Must change password</span>
+                                        {% endif %}
+                                    {% else %}
+                                        <span class="badge bg-secondary">No password yet</span>
+                                    {% endif %}
+                                    <div class="small mt-1">
+                                        {% for parent in student.parents.all %}
+                                            Parent: <code>{{ parent.user.username }}</code>
+                                        {% empty %}
+                                            <span class="text-muted">No parent login</span>
+                                        {% endfor %}
+                                    </div>
+                                </td>
+                                <td class="text-end">
+                                    <a class="btn btn-outline-secondary btn-sm mb-1" href="?edit={{ student.id }}">Edit</a>
+                                    <form method="POST" class="d-inline">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="action" value="issue_student_login">
+                                        <input type="hidden" name="profile_id" value="{{ student.id }}">
+                                        <button class="btn btn-outline-primary btn-sm mb-1" type="submit">
+                                            {% if student.user.has_usable_password %}Reset student password{% else %}Generate student login{% endif %}
+                                        </button>
+                                    </form>
+                                    <form method="POST" class="d-inline">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="action" value="issue_parent_login">
+                                        <input type="hidden" name="profile_id" value="{{ student.id }}">
+                                        <button class="btn btn-outline-info btn-sm mb-1" type="submit">
+                                            {% if student.parents.all %}Reset parent password{% else %}Generate parent login{% endif %}
+                                        </button>
+                                    </form>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="4" class="text-center text-muted py-4">No students entered yet.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const preferredStops = {
+    {% for route in routes %}
+    "{{ route.id }}": [
+        {% for stop in route.stops.all %}
+        {id: {{ stop.id }}, sequence: {{ stop.stop_sequence }}, name: "{{ stop.stop_name|escapejs }}"}{% if not forloop.last %},{% endif %}
+        {% endfor %}
+    ]{% if not forloop.last %},{% endif %}
+    {% endfor %}
+};
+const selectedPickup = "{% if form_data %}{{ form_data.preferred_pickup_stop_id }}{% elif edit_profile and edit_profile.preferred_pickup_stop_id %}{{ edit_profile.preferred_pickup_stop_id }}{% endif %}";
+const selectedDrop = "{% if form_data %}{{ form_data.preferred_drop_stop_id }}{% elif edit_profile and edit_profile.preferred_drop_stop_id %}{{ edit_profile.preferred_drop_stop_id }}{% endif %}";
+
+function populatePreferredStops() {
+    const routeId = document.getElementById('preferredRoute').value;
+    const stops = preferredStops[routeId] || [];
+    const pickup = document.getElementById('preferredPickup');
+    const drop = document.getElementById('preferredDrop');
+    const pickupHtml = ['<option value="">-- Pickup stop --</option>'];
+    const dropHtml = ['<option value="">-- Drop stop --</option>'];
+    stops.forEach(stop => {
+        pickupHtml.push(`<option value="${stop.id}" ${String(stop.id) === selectedPickup ? 'selected' : ''}>#${stop.sequence} ${stop.name}</option>`);
+        dropHtml.push(`<option value="${stop.id}" ${String(stop.id) === selectedDrop ? 'selected' : ''}>#${stop.sequence} ${stop.name}</option>`);
+    });
+    pickup.innerHTML = pickupHtml.join('');
+    drop.innerHTML = dropHtml.join('');
+}
+populatePreferredStops();
+</script>
+{% endblock %}

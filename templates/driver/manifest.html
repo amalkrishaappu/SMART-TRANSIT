@@ -6,19 +6,55 @@
 <div class="container-fluid px-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
-            <h2 class="fw-bold mb-1"><i class="fas fa-clipboard-list text-success me-2"></i>Driver Trip Console & Manifest</h2>
-            <p class="text-muted mb-0">Driver: <strong>{{ driver.user.get_full_name }}</strong> | License: <strong>{{ driver.license_number }}</strong></p>
+            <h2 class="fw-bold mb-1"><i class="fas fa-clipboard-list text-success me-2"></i>Driver Console & Trip Manifest</h2>
+            <p class="text-muted mb-0">Driver: <strong>{{ driver.user.get_full_name }}</strong> | License: <code>{{ driver.license_number }}</code></p>
         </div>
         <div>
-            <span class="badge bg-success px-3 py-2 fs-6"><i class="fas fa-id-card me-1"></i> Active Driver Duty</span>
+            <span class="badge bg-success px-3 py-2 fs-6"><i class="fas fa-id-card me-1"></i> Authorized Driver</span>
         </div>
     </div>
 
     {% if not bus %}
-        <div class="alert alert-warning card-custom p-4">
-            <h5><i class="fas fa-exclamation-circle me-2"></i> No Bus Assigned</h5>
-            <p class="mb-0">You are currently not assigned to any bus. Please contact the fleet administrator.</p>
+        <!-- UNASSIGNED DRIVER STANDBY HERO CARD -->
+        <div class="card card-custom p-5 border-start border-4 border-warning shadow-sm mb-4">
+            <div class="row align-items-center">
+                <div class="col-md-2 text-center mb-3 mb-md-0">
+                    <div class="display-3 text-warning"><i class="fas fa-id-badge"></i></div>
+                </div>
+                <div class="col-md-10">
+                    <h3 class="fw-bold text-navy mb-2">Duty Status: Standby / No Bus Assigned</h3>
+                    <p class="text-muted mb-3">
+                        Welcome, <strong>{{ driver.user.get_full_name }}</strong>. You are currently in standby/reserve status. You have not been assigned to a specific college bus yet.
+                    </p>
+                    <div class="alert alert-light border mb-3">
+                        <i class="fas fa-info-circle text-primary me-1"></i>
+                        The transport administrator will assign your designated bus and route in the Fleet Management Console. Once assigned, your daily route, expected student passenger list, and trip controls will automatically activate here.
+                    </div>
+                    <div class="text-muted small">
+                        Registered License: <strong>{{ driver.license_number }}</strong> &bull; Experience: <strong>{{ driver.experience_years }} years</strong> &bull; Phone: <strong>{{ driver.user.phone_number|default:"Not provided" }}</strong>
+                    </div>
+                </div>
+            </div>
         </div>
+
+        <!-- Driver Notifications Feed -->
+        <div class="card card-custom p-4">
+            <h5 class="fw-bold mb-3"><i class="fas fa-bell text-warning me-2"></i>Duty Notifications & Announcements</h5>
+            <div class="list-group list-group-flush">
+                {% for notif in notifications %}
+                    <div class="list-group-item px-0 py-2 border-bottom">
+                        <div class="d-flex justify-content-between">
+                            <strong class="text-navy">{{ notif.title }}</strong>
+                            <small class="text-muted">{{ notif.created_at|date:"d M, H:i" }}</small>
+                        </div>
+                        <div class="text-muted small" style="white-space: pre-line;">{{ notif.message }}</div>
+                    </div>
+                {% empty %}
+                    <div class="text-muted small">No new duty notices.</div>
+                {% endfor %}
+            </div>
+        </div>
+
     {% else %}
 
     <!-- Trip & Bus Card -->
@@ -27,19 +63,19 @@
             <div class="card card-custom p-3 border-start border-4 border-success">
                 <div class="row align-items-center">
                     <div class="col-md-3">
-                        <small class="text-muted text-uppercase fw-bold">Assigned Bus</small>
+                        <small class="text-muted text-uppercase fw-bold">Assigned Vehicle</small>
                         <h4 class="fw-bold text-navy mb-0"><i class="fas fa-bus text-success me-1"></i> {{ bus.bus_number }}</h4>
-                        <small class="text-muted">{{ bus.registration_number }} (Cap: {{ bus.seating_capacity }} seats)</small>
+                        <small class="text-muted">{{ bus.registration_number }} &bull; {{ bus.model_name }}</small>
                     </div>
                     <div class="col-md-3">
                         <small class="text-muted text-uppercase fw-bold">Assigned Route</small>
-                        <div class="fw-bold">{{ route.route_name }}</div>
-                        <span class="badge bg-secondary">{{ route.route_code }}</span>
+                        <div class="fw-bold">{{ route.route_name|default:"Route Pending" }}</div>
+                        <span class="badge bg-secondary">{{ route.route_code|default:"N/A" }}</span>
                     </div>
                     <div class="col-md-3">
-                        <small class="text-muted text-uppercase fw-bold">Total Expected Passengers</small>
+                        <small class="text-muted text-uppercase fw-bold">Expected Student Passengers</small>
                         <h4 class="fw-bold text-primary mb-0"><i class="fas fa-users me-1"></i> {{ passengers.count }} Students</h4>
-                        <small class="text-muted">Capacity Occupancy: {{ bus.current_occupancy_count }}/{{ bus.seating_capacity }}</small>
+                        <small class="text-muted">Seating Capacity: {{ bus.current_occupancy_count }}/{{ bus.seating_capacity }}</small>
                     </div>
                     <div class="col-md-3 text-end">
                         <button class="btn btn-primary px-3 py-2" onclick="window.location.reload()">
@@ -56,12 +92,12 @@
         <div class="col-12">
             <div class="card card-custom p-4">
                 <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h4 class="fw-bold mb-0"><i class="fas fa-user-check text-success me-2"></i>Approved Student Passenger Manifest</h4>
-                    <span class="badge bg-light text-dark border">Updated in real-time upon admin approval</span>
+                    <h4 class="fw-bold mb-0"><i class="fas fa-user-check text-success me-2"></i>Student Passenger Boarding List</h4>
+                    <span class="badge bg-light text-dark border">Live manifest updated upon administrator approvals</span>
                 </div>
 
                 <div class="alert alert-info py-2 small">
-                    <i class="fas fa-info-circle me-1"></i> <strong>Notice for Drivers:</strong> All passenger pickup and drop locations displayed here are authorized by the college administration. Any approved temporary or permanent location changes are automatically reflected below. Drivers cannot modify assignments.
+                    <i class="fas fa-info-circle me-1"></i> <strong>Driver Operational Guidelines:</strong> Passenger pickup and drop stops displayed below are authorized by the administration. Any approved location change requests automatically update this list with real-time badges.
                 </div>
 
                 <div class="table-responsive">
@@ -71,10 +107,10 @@
                                 <th>#</th>
                                 <th>Student Name</th>
                                 <th>Student ID</th>
-                                <th>Department</th>
+                                <th>Department & Year</th>
                                 <th>Active Pickup Stop</th>
                                 <th>Active Drop Stop</th>
-                                <th>Location Status / Assignment Tag</th>
+                                <th>Assignment Status</th>
                                 <th>Emergency Contact</th>
                             </tr>
                         </thead>
@@ -106,7 +142,7 @@
                                         <span class="badge bg-warning text-dark p-2">
                                             <i class="fas fa-clock me-1"></i> Approved Temp Change (until {{ p.temporary_end_date|date:"d M Y" }})
                                         </span>
-                                        <small class="d-block text-muted mt-1">Perm Baseline: {{ p.permanent_pickup_stop.stop_name }}</small>
+                                        <small class="d-block text-muted mt-1">Permanent: {{ p.permanent_pickup_stop.stop_name }}</small>
                                     {% else %}
                                         <span class="badge bg-success p-2">
                                             <i class="fas fa-check-circle me-1"></i> Regular Approved Assignment
@@ -121,8 +157,8 @@
                             </tr>
                             {% empty %}
                             <tr>
-                                <td colspan="8" class="text-center py-4 text-muted">
-                                    <i class="fas fa-users-slash fs-2 d-block mb-2"></i> No passengers assigned to this bus yet.
+                                <td colspan="8" class="text-center py-5 text-muted">
+                                    <i class="fas fa-users-slash fs-2 d-block mb-2"></i> No students allotted to this bus yet. The administrator will allot passengers in the Student Allotment Console.
                                 </td>
                             </tr>
                             {% endfor %}

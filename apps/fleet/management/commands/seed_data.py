@@ -180,7 +180,7 @@ class Command(BaseCommand):
         stops_data_r2 = [
             (1, 'Swaraj Round North', 10.5276, 76.2144, time(7, 15), time(17, 45)),
             (2, 'Ollur Junction', 10.4682, 76.2410, time(7, 35), time(17, 25)),
-            (3, 'Pudukkad Center', 10.4215, 76.2550, time(7, 55), time(17, 05)),
+            (3, 'Pudukkad Center', 10.4215, 76.2550, time(7, 55), time(17, 5)),
             (4, 'College South Gate', 10.3840, 76.2450, time(8, 30), time(16, 30)),
         ]
         for seq, name, lat, lng, p_time, d_time in stops_data_r2:

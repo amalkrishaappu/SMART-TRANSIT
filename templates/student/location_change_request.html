@@ -7,8 +7,8 @@
     <!-- Breadcrumb & Header -->
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
-            <h2 class="fw-bold mb-1"><i class="fas fa-map-marker-alt text-primary me-2"></i>Pickup & Drop Location Change Request</h2>
-            <p class="text-muted mb-0">Request stop changes along your assigned route. All changes require administrator approval.</p>
+            <h2 class="fw-bold mb-1"><i class="fas fa-map-marker-alt text-primary me-2"></i>Student Transportation Portal</h2>
+            <p class="text-muted mb-0">Welcome, <strong>{{ student.user.get_full_name }}</strong> ({{ student.department }} &bull; {{ student.academic_year }})</p>
         </div>
         <div>
             <span class="badge bg-primary px-3 py-2 fs-6"><i class="fas fa-id-badge me-1"></i> ID: {{ student.student_id }}</span>
@@ -19,10 +19,46 @@
     <div id="alertBox"></div>
 
     {% if not assignment %}
-        <div class="alert alert-warning card-custom p-4">
-            <h5><i class="fas fa-exclamation-triangle me-2"></i> No Active Bus Assignment</h5>
-            <p class="mb-0">You are currently not assigned to any college bus or route. Please contact the transportation administrator.</p>
+        <!-- PENDING BUS ALLOTMENT HERO CARD -->
+        <div class="card card-custom p-5 border-start border-4 border-warning shadow-sm mb-4">
+            <div class="row align-items-center">
+                <div class="col-md-2 text-center mb-3 mb-md-0">
+                    <div class="display-3 text-warning"><i class="fas fa-hourglass-half"></i></div>
+                </div>
+                <div class="col-md-10">
+                    <h3 class="fw-bold text-navy mb-2">Bus Assignment Pending Administrator Allotment</h3>
+                    <p class="text-muted mb-3">
+                        Your student registration has been recorded successfully! You are registered under <strong>{{ student.department }}</strong> for academic year <strong>{{ student.academic_year }}</strong>.
+                    </p>
+                    <div class="alert alert-light border mb-3">
+                        <i class="fas fa-info-circle text-primary me-1"></i>
+                        The college transport administrator is currently allocating buses and routes for your batch. Once the administrator allots your bus and authorized stops, your live route map, tracking, and pickup/drop change options will automatically appear on this dashboard.
+                    </div>
+                    <div class="text-muted small">
+                        Registered Roll No: <strong>{{ student.student_id }}</strong> | Emergency Contact: <strong>{{ student.emergency_contact|default:"Not provided" }}</strong>
+                    </div>
+                </div>
+            </div>
         </div>
+
+        <!-- Notifications Tray for New Students -->
+        <div class="card card-custom p-4">
+            <h5 class="fw-bold mb-3"><i class="fas fa-bell text-warning me-2"></i>Recent Notifications</h5>
+            <div class="list-group list-group-flush">
+                {% for notif in notifications %}
+                    <div class="list-group-item px-0 py-2 border-bottom">
+                        <div class="d-flex justify-content-between">
+                            <strong class="text-navy">{{ notif.title }}</strong>
+                            <small class="text-muted">{{ notif.created_at|date:"d M, H:i" }}</small>
+                        </div>
+                        <div class="text-muted small" style="white-space: pre-line;">{{ notif.message }}</div>
+                    </div>
+                {% empty %}
+                    <div class="text-muted small">No new notifications.</div>
+                {% endfor %}
+            </div>
+        </div>
+
     {% else %}
 
     <!-- Current Transportation Info Card -->
@@ -301,6 +337,7 @@
 {% endblock %}
 
 {% block extra_js %}
+{% if assignment %}
 <script>
 // Available Stops data from Django template
 const routeStops = [
@@ -317,8 +354,8 @@ const routeStops = [
     {% endfor %}
 ];
 
-const currentPickupId = {% if assignment %}{{ assignment.active_pickup_stop.id }}{% else %}null{% endif %};
-const currentDropId = {% if assignment %}{{ assignment.active_drop_stop.id }}{% else %}null{% endif %};
+const currentPickupId = {{ assignment.active_pickup_stop.id }};
+const currentDropId = {{ assignment.active_drop_stop.id }};
 
 let map, markersLayer;
 
@@ -326,7 +363,6 @@ let map, markersLayer;
 function initMap() {
     if (!routeStops.length) return;
 
-    // Centered around first stop
     map = L.map('routeMap').setView([routeStops[0].lat, routeStops[0].lng], 12);
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -337,7 +373,6 @@ function initMap() {
     markersLayer = L.layerGroup().addTo(map);
     renderMarkers();
 
-    // Polyline connecting stops
     const latlngs = routeStops.map(s => [s.lat, s.lng]);
     const routeLine = L.polyline(latlngs, {color: '#1b2a4a', weight: 4, dashArray: '6, 6'}).addTo(map);
     map.fitBounds(routeLine.getBounds(), {padding: [30, 30]});
@@ -347,19 +382,19 @@ function renderMarkers(highlightPickupId = null, highlightDropId = null) {
     markersLayer.clearLayers();
 
     routeStops.forEach(stop => {
-        let markerColor = '#6c757d'; // default secondary
+        let markerColor = '#6c757d';
         let label = `Stop #${stop.sequence}: ${stop.name}`;
 
         if (stop.id === currentPickupId) {
-            markerColor = '#2a9d8f'; // Green current pickup
+            markerColor = '#2a9d8f';
             label += ' [Current Pickup]';
         } else if (stop.id === currentDropId) {
-            markerColor = '#e63946'; // Red current drop
+            markerColor = '#e63946';
             label += ' [Current Drop]';
         }
 
         if (stop.id === highlightPickupId || stop.id === highlightDropId) {
-            markerColor = '#f39c12'; // Orange target highlight
+            markerColor = '#f39c12';
             label += ' [Requested Target]';
         }
 
@@ -416,7 +451,6 @@ function handleStopChange() {
 
     renderMarkers(pickupVal, dropVal);
 
-    // Sequence Validation
     const effectivePickupSeq = getStopSequence(pickupVal) || getStopSequence(currentPickupId);
     const effectiveDropSeq = getStopSequence(dropVal) || getStopSequence(currentDropId);
 
@@ -437,7 +471,6 @@ function getStopSequence(stopId) {
     return stop ? stop.sequence : null;
 }
 
-// Set default start date to tomorrow
 document.addEventListener('DOMContentLoaded', function() {
     initMap();
     const today = new Date();
@@ -452,7 +485,6 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('effective_end_date').min = dateStr;
 });
 
-// Form Submission via AJAX to REST API
 document.getElementById('locationChangeForm')?.addEventListener('submit', function(e) {
     e.preventDefault();
     const submitBtn = document.getElementById('submitBtn');
@@ -527,4 +559,5 @@ function showAlert(type, msg) {
     box.scrollIntoView({behavior: 'smooth'});
 }
 </script>
+{% endif %}
 {% endblock %}

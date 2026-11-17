@@ -74,11 +74,20 @@
                     {% if user.is_authenticated %}
                         {% if user.role == 'ADMIN' or user.is_superuser %}
                             <li class="nav-item">
-                                <a class="nav-link active" href="{% url 'admin-location-requests' %}"><i class="fas fa-exchange-alt me-1"></i> Location Change Requests</a>
+                                <a class="nav-link" href="{% url 'admin-student-management' %}"><i class="fas fa-user-graduate me-1"></i> Student Management</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" href="{% url 'admin-fleet-routes' %}"><i class="fas fa-road me-1"></i> Fleet & Routes</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" href="{% url 'admin-bus-allotment' %}"><i class="fas fa-user-check me-1"></i> Student Allotment</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" href="{% url 'admin-location-requests' %}"><i class="fas fa-exchange-alt me-1"></i> Location Requests</a>
                             </li>
                         {% elif user.role == 'STUDENT' %}
                             <li class="nav-item">
-                                <a class="nav-link active" href="{% url 'student-location-request' %}"><i class="fas fa-map-marker-alt me-1"></i> Pickup & Drop Changes</a>
+                                <a class="nav-link active" href="{% url 'student-location-request' %}"><i class="fas fa-map-marker-alt me-1"></i> My Bus & Location Changes</a>
                             </li>
                         {% elif user.role == 'DRIVER' %}
                             <li class="nav-item">
@@ -99,7 +108,7 @@
                         </div>
                         <a href="{% url 'logout-view' %}" class="btn btn-outline-light btn-sm"><i class="fas fa-sign-out-alt me-1"></i> Logout</a>
                     {% else %}
-                        <a href="{% url 'login-view' %}" class="btn btn-warning btn-sm"><i class="fas fa-sign-in-alt me-1"></i> Login</a>
+                        <a href="{% url 'login-view' %}" class="btn btn-warning btn-sm fw-semibold"><i class="fas fa-sign-in-alt me-1"></i> Login / Register</a>
                     {% endif %}
                 </div>
             </div>
